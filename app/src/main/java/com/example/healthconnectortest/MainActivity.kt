@@ -1,6 +1,12 @@
 package com.example.healthconnectortest
 
+import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
@@ -8,6 +14,7 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -24,6 +31,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.PermissionController
 import androidx.health.connect.client.permission.HealthPermission
@@ -299,6 +307,86 @@ class MainActivity : ComponentActivity() {
         } catch (e: Exception) {
             // Run error handling here.
         }
+    }
+
+    /**
+     * 센서 권한
+     *
+     * 센서 권한은 따로 설정 해야 한다.
+     */
+    private fun checkSensorPermission() {
+        if (ContextCompat.checkSelfPermission(
+                this,
+                android.Manifest.permission.ACTIVITY_RECOGNITION
+            ) == PackageManager.PERMISSION_DENIED
+        ) {
+            Toast.makeText(this, "센서 퍼미션 없음", Toast.LENGTH_SHORT).show()
+
+            //ask for permission
+            requestPermissionLauncher.launch(arrayOf(android.Manifest.permission.ACTIVITY_RECOGNITION))
+
+        } else {
+            Toast.makeText(this, "센서 퍼미션 있음", Toast.LENGTH_SHORT).show()
+            initSensor()
+            //권한있는 경우
+        }
+    }
+
+    private val requestPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) {
+
+        var results = true
+        it.values.forEach {
+            if (!it) {
+                results = false
+                return@forEach
+            }
+        }
+        Log.d("TEST_LOG", "requestPermissionLauncher() | result: $results")
+
+        if (!results) {
+            Toast.makeText(this, "권한이 필요합니다.", Toast.LENGTH_SHORT).show()
+        } else {
+            initSensor()
+            //모두 권한이 있을 경우
+        }
+    }
+
+    private fun initSensor() {
+        val sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        val heartRateSensor = sensorManager.getDefaultSensor(Sensor.TYPE_HEART_RATE)
+
+        if (heartRateSensor != null) {  Toast.makeText(this, "심박수 센서 존재", Toast.LENGTH_SHORT).show()
+        } else {
+            Toast.makeText(this, "심박수 센서가 없음.", Toast.LENGTH_SHORT).show()
+        }
+
+        val heartRateListener = object : SensorEventListener {
+            override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
+                // 센서 정확도 변경 시 처리
+            }
+
+            override fun onSensorChanged(event: SensorEvent?) {
+                event?.let {
+                    if (event?.sensor?.type == Sensor.TYPE_HEART_RATE) {
+                        val heartRate = event.values[0].toInt()
+                        // 심박수 값을 이용하여 UI 업데이트 등 원하는 작업 수행
+                        runOnUiThread {
+                            // UI 스레드에서 UI 업데이트
+                            Toast.makeText(this@MainActivity, "심박수: $heartRate", Toast.LENGTH_SHORT)
+                                .show()
+                        }
+                    }
+                }
+            }
+        }
+
+        sensorManager.registerListener(
+            heartRateListener,
+            heartRateSensor,
+            SensorManager.SENSOR_DELAY_NORMAL
+        )
     }
 
 }
